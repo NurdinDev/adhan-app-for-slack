@@ -1,0 +1,33 @@
+service: adhan-slack-app
+
+useDotenv: true
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  environment:
+    SLACK_SIGNING_SECRET: ${env:SLACK_SIGNING_SECRET}
+    SLACK_CLIENT_ID: ${env:SLACK_CLIENT_ID}
+    SLACK_CLIENT_SECRET: ${env:SLACK_CLIENT_SECRET}
+    SLACK_STATE_SECRET: ${env:SLACK_STATE_SECRET}
+    CRYPTO_SECRET: ${env:CRYPTO_SECRET}
+    CRYPTO_SALT: ${env:CRYPTO_SALT}
+    MONGODB_URI: ${env:MONGODB_URI}
+
+functions:
+  slack-handler:
+    handler: src/handler.handler
+    events:
+      - httpApi:
+          method: post
+          path: /slack/events
+      - httpApi:
+          method: get
+          path: /slack/install
+      - httpApi:
+          method: get
+          path: /slack/oauth_redirect
