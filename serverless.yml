@@ -1,10 +1,19 @@
 service: adhan-slack-app
 
-useDotenv: true
-
 plugins:
   - serverless-plugin-typescript
   - serverless-offline
+
+custom:
+  schedule_enabled:
+    prod: true
+    dev: false
+
+  schedule:
+    name: 'adhan-slack-app-daily-scheduler-${sls:stage}'
+    description: 'scan users and reschedule messages each day'
+    rate: cron(0,30 * * * ? *)
+    enabled: ${self:custom.schedule_enabled.${sls:stage}}
 
 provider:
   name: aws
@@ -19,8 +28,12 @@ provider:
     MONGODB_URI: ${env:MONGODB_URI}
 
 functions:
+  slack-cron:
+    handler: src/serverless/slack-cron.handler
+    events:
+      - schedule: ${self:custom.schedule}
   slack-handler:
-    handler: src/handler.handler
+    handler: src/serverless/slack-handler.handler
     events:
       - httpApi:
           method: post
