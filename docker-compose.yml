@@ -1,14 +1,5 @@
 version: '3.8'
 services:
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - '3000:3000'
-    depends_on:
-      - mongodb
-
   mongodb:
     image: mongo:latest
     ports:
