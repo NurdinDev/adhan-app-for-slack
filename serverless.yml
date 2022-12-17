@@ -7,7 +7,6 @@ plugins:
 custom:
   schedule_enabled:
     prod: true
-    dev: false
 
   schedule:
     name: 'adhan-slack-app-daily-scheduler-${sls:stage}'
@@ -18,6 +17,7 @@ custom:
 provider:
   name: aws
   runtime: nodejs18.x
+  stage: prod
   environment:
     SLACK_SIGNING_SECRET: ${env:SLACK_SIGNING_SECRET}
     SLACK_CLIENT_ID: ${env:SLACK_CLIENT_ID}
