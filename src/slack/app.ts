@@ -5,6 +5,7 @@ import {
   InstallationQuery,
   Logger,
 } from '@slack/bolt';
+import { ConsoleLogger } from '@slack/logger';
 import * as env from 'env-var';
 import {
   actions,
@@ -58,6 +59,16 @@ export const app = new App({
 
 export async function registerEvents() {
   app.event('app_home_opened', homeOpenedEvent);
+  app.event('app_uninstalled', async ({ body }) => {
+    if (body.team_id) {
+      await deleteInstallationFromDB(body.team_id, new ConsoleLogger());
+    }
+  });
+  app.event('tokens_revoked', async ({ body }) => {
+    if (body.team_id) {
+      await deleteInstallationFromDB(body.team_id, new ConsoleLogger());
+    }
+  });
   app.view(callbackIds.settingsSubmitted, settingsViewCallback);
   app.action(actions.appSettingsClick, settingsAction);
 }
@@ -109,6 +120,13 @@ async function installationCollection() {
   return installationCollection;
 }
 
+async function usersCollection() {
+  const client = await clientPromise;
+  const db = client.db();
+  const usersCollection = db.collection<installationSchema>(COLLECTIONS.users);
+  return usersCollection;
+}
+
 async function queryInstallationFromDB(teamId: string, logger?: Logger) {
   try {
     const collection = await installationCollection();
@@ -137,6 +155,8 @@ async function deleteInstallationFromDB(teamId: string, logger?: Logger) {
   try {
     const collection = await installationCollection();
     await collection.deleteOne({ teamId });
+    const userCollection = await usersCollection();
+    await userCollection.deleteMany({ teamId });
   } catch (exception) {
     logger?.info('delete team information error:', JSON.stringify(exception));
   }

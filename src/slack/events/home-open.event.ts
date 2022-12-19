@@ -20,7 +20,6 @@ export const homeOpenedEvent: Middleware<
     userId: event.user,
     teamId,
   });
-  console.log({ user });
   if (!user) {
     await client.views.publish({
       user_id: event.user,
