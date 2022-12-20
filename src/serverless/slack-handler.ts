@@ -1,5 +1,6 @@
 import serverlessExpress from '@vendia/serverless-express';
-import { expressReceiver, registerEvents } from '../slack/app';
+import { SlackApp } from '../slack/app';
 
-registerEvents();
-exports.handler = serverlessExpress({ app: expressReceiver.app });
+const slackApp = new SlackApp();
+slackApp.registerEvents();
+exports.handler = serverlessExpress({ app: slackApp.expressReceiver.app });
