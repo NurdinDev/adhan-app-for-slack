@@ -8,7 +8,7 @@ import { SlackApp } from './slack/app';
   await slackApp.app.start(env.get('PORT').default(3000).asPortNumber());
   console.log('⚡️ Bolt app is running!');
 
-  schedule.scheduleJob('* * * * *', async function () {
+  schedule.scheduleJob('0,30 * * * *', async function () {
     console.log('> Scheduled job: scanAndSchedule');
     await slackApp.scanAndSchedule();
   });
