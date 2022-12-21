@@ -127,6 +127,7 @@ export class SlackApp {
         await messageScheduler.reScheduleMessages(userId, teamId, reminderList);
       } catch (e) {
         console.log(e);
+        continue;
       }
     }
   }
@@ -134,11 +135,13 @@ export class SlackApp {
   registerEvents() {
     this.app.event('app_home_opened', homeOpenedEvent);
     this.app.event('app_uninstalled', async ({ body }) => {
+      console.log('app_uninstalled', body);
       if (body.team_id) {
         await this.deleteInstallationFromDB(body.team_id, new ConsoleLogger());
       }
     });
     this.app.event('tokens_revoked', async ({ body }) => {
+      console.log('tokens_revoked', body);
       if (body.team_id) {
         await this.deleteInstallationFromDB(body.team_id, new ConsoleLogger());
       }
@@ -231,6 +234,7 @@ export class SlackApp {
       await collection.deleteOne({ teamId });
       const userCollection = await this.usersCollection();
       await userCollection.deleteMany({ teamId });
+      logger?.info(`delete team ${teamId} information success`);
     } catch (exception) {
       logger?.info('delete team information error:', JSON.stringify(exception));
     }
