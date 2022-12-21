@@ -3,5 +3,6 @@ import { SlackApp } from '../slack/app';
 const slackApp = new SlackApp();
 exports.handler = async function scanAndSchedule(event: any) {
   console.log('EVENT: \n' + JSON.stringify(event, null, 2));
-  await slackApp.scanAndSchedule();
+  const time = event['time'] || { h: 1, m: 0 };
+  await slackApp.scanAndSchedule(time);
 };

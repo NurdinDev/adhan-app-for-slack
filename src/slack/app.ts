@@ -68,13 +68,13 @@ export class SlackApp {
     });
   }
 
-  async scanAndSchedule() {
+  async scanAndSchedule(time: { h: number; m: number }) {
     // scan for user that have time 01:00 AM and re-schedule their messages
     const expr = {
       $expr: {
         $and: [
-          { $eq: [{ $hour: { date: new Date(), timezone: '$tz' } }, 1] },
-          { $eq: [{ $minute: { date: new Date(), timezone: '$tz' } }, 0] },
+          { $eq: [{ $hour: { date: new Date(), timezone: '$tz' } }, time.h] },
+          { $eq: [{ $minute: { date: new Date(), timezone: '$tz' } }, time.m] },
         ],
       },
     };
@@ -82,23 +82,24 @@ export class SlackApp {
     const users = usersCollection.find(expr);
     console.log(`Found ${await usersCollection.countDocuments(expr)} users`);
     while (await users.hasNext()) {
-      const user = await users.next();
-      if (!user) continue;
-
-      console.log('USER: \n' + JSON.stringify(user, null, 2));
-
-      const {
-        userId,
-        teamId,
-        tz,
-        coordinates,
-        reminderList,
-        calculationMethod,
-        language,
-      } = user;
-      if (!coordinates || !reminderList) return;
-
       try {
+        const user = await users.next();
+        if (!user) {
+          console.log('No user found');
+          continue;
+        }
+
+        const {
+          userId,
+          teamId,
+          tz,
+          coordinates,
+          reminderList,
+          calculationMethod,
+          language,
+        } = user;
+        if (!coordinates || !reminderList) return;
+
         const adhan = new Adhan(
           new Coordinates(coordinates.latitude, coordinates.longitude),
           calculationMethod,
@@ -106,11 +107,17 @@ export class SlackApp {
           language,
         );
 
-        if (adhan.nextPrayer === 'none') return;
+        if (adhan.nextPrayer === 'none') {
+          console.log('No prayer time for today');
+          return;
+        }
 
         const token = await this.getAuthToken(teamId);
 
-        if (!token) return;
+        if (!token) {
+          console.log('No token found for team: ' + teamId);
+          return;
+        }
 
         const messageScheduler = new MessageScheduler(
           new WebClient(token),
