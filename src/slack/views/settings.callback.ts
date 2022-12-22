@@ -76,7 +76,9 @@ export const settingsViewCallback: Middleware<
       });
       return;
     }
-    ack();
+
+    // acknowledge the view_submission request
+    await ack();
 
     const userInfo = await client.users.info({
       user: userId,
@@ -112,6 +114,7 @@ export const settingsViewCallback: Middleware<
         await userCollection.updateOne(
           {
             userId,
+            teamId,
           },
           {
             $set: {
@@ -132,9 +135,8 @@ export const settingsViewCallback: Middleware<
       }
 
       const messageScheduler = new MessageScheduler(client, logger);
-
-      // FIXME: prevent rescheduling if the user didn't change the reminder list
-      await messageScheduler.reScheduleMessages(userId, teamId, reminderList);
+      // don't await this function
+      messageScheduler.reScheduleMessages(userId, teamId, reminderList);
     }
   } catch (error) {
     logger.error(error);
