@@ -70,6 +70,7 @@ I started this project in the seek of learning and trying out SlackAPI, the proj
 
 ## TODO
 
+- [ ] - CI/CD
 - [ ] - Refactoring and use logger instead of console.logs
 - [ ] - Support Turkish language
 
