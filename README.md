@@ -4,6 +4,10 @@
 
 Adhan Slack App is an Islamic prayer times reminder configurable and sample to use, the App job is to help you remember praying before the next prayer time by sending a friendly notification.
 
+<img src="./assets/cover1.1.png" width="33%"></img>
+<img src="./assets/cover2.2.png" width="33%"></img>
+<img src="./assets/cover3.3.png" width="33%"></img>
+
 ## Features
 
 - On-time and easy configuration
@@ -68,3 +72,7 @@ I started this project in the seek of learning and trying out SlackAPI, the proj
 
 - [ ] - Refactoring and use logger instead of console.logs
 - [ ] - Support Turkish language
+
+## License
+
+The MIT License.
