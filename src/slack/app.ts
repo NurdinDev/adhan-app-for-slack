@@ -11,9 +11,9 @@ import { Coordinates } from 'adhan';
 import * as env from 'env-var';
 import {
   actions,
-  callbackIds,
   COLLECTIONS,
   installationSchema,
+  settingsView,
   userSchema,
 } from '../constants';
 import clientPromise from '../db/mongodb';
@@ -146,7 +146,7 @@ export class SlackApp {
         await this.deleteInstallationFromDB(body.team_id, new ConsoleLogger());
       }
     });
-    this.app.view(callbackIds.settingsSubmitted, settingsViewCallback);
+    this.app.view(settingsView.callbackId, settingsViewCallback);
     this.app.action(actions.appSettingsClick, settingsAction);
   }
   private async fetchInstallation(

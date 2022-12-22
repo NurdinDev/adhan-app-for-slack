@@ -18,8 +18,6 @@ export const settingsView = {
 
 export const actions = {
   appSettingsClick: 'appSettingsClick',
-  appDatePickerClick: 'appDatePickerClick',
-  appTodayClick: 'appTodayClick',
 };
 
 export const minutesOffset = 20;
