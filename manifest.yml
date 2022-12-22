@@ -1,7 +1,7 @@
 display_information:
   name: Adhan
   description: Islamic prayer times and Adhan reminder
-  background_color: '#313244'
+  background_color: '#118F7C'
   long_description:
     "While you're on Slack, you might be in a meeting, or you might be so focused on your tasks, you might forget the time and miss prayers.\r
 
@@ -9,26 +9,25 @@ display_information:
 features:
   app_home:
     home_tab_enabled: true
-    messages_tab_enabled: false
+    messages_tab_enabled: true
     messages_tab_read_only_enabled: true
   bot_user:
     display_name: Adhan
     always_online: true
 oauth_config:
   redirect_urls:
-    - https://b465-95-70-233-130.eu.ngrok.io/slack/oauth_redirect
+    - https://wntb50v10h.execute-api.us-east-1.amazonaws.com/slack/oauth_redirect
   scopes:
     bot:
-      - users:read
       - chat:write
 settings:
   event_subscriptions:
-    request_url: https://b465-95-70-233-130.eu.ngrok.io/slack/events
+    request_url: https://wntb50v10h.execute-api.us-east-1.amazonaws.com/slack/events
     bot_events:
       - app_home_opened
   interactivity:
     is_enabled: true
-    request_url: https://b465-95-70-233-130.eu.ngrok.io/slack/events
-  org_deploy_enabled: false
+    request_url: https://wntb50v10h.execute-api.us-east-1.amazonaws.com/slack/events
+  org_deploy_enabled: true
   socket_mode_enabled: false
   token_rotation_enabled: false
