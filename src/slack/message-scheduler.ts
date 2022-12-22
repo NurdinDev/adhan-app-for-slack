@@ -122,7 +122,9 @@ export class MessageScheduler {
       for (const prayerName of nextPrayersList) {
         const timeForPrayer = adhan.prayerTimes.timeForPrayer(prayerName);
         // if the time in the past, skip it
-        if (moment(timeForPrayer).isBefore(moment())) {
+        if (
+          moment(timeForPrayer).isBefore(moment().subtract(minutesOffset, 'm'))
+        ) {
           continue;
         }
         if (timeForPrayer instanceof Date) {
@@ -141,10 +143,10 @@ export class MessageScheduler {
       }
     }
 
-    await this.updateUser(userId, teamId, messagesMap);
+    await this.updateUserMessages(userId, teamId, messagesMap);
   }
 
-  private async updateUser(
+  private async updateUserMessages(
     userId: string,
     teamId: string,
     messagesMap: Map<prayerWithoutNone, string>,
@@ -233,9 +235,7 @@ export class MessageScheduler {
       });
 
       if (scheduleMessage.ok) {
-        this.logger.info(
-          `Reminder for ${prayerName} scheduled at ${time.toISOString()}`,
-        );
+        this.logger.info(`Reminder for ${prayerName} with message ${text}`);
         return scheduleMessage.scheduled_message_id as string;
       }
       if (scheduleMessage.error) {
