@@ -69,9 +69,10 @@ export const settingsBlock = (
           .initialOption(
             method
               ? Bits.Option({
-                  text: method,
-                  value:
-                    calculationMethod[method as keyof typeof calculationMethod],
+                  value: method,
+                  text: calculationMethod[
+                    method as keyof typeof calculationMethod
+                  ],
                 })
               : undefined,
           ),
