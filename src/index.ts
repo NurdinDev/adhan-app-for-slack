@@ -10,6 +10,10 @@ import { SlackApp } from './slack/app';
 
   schedule.scheduleJob('0,30 * * * *', async function () {
     console.log('> Scheduled job: scanAndSchedule');
-    await slackApp.scanAndSchedule();
+    const time = {
+      h: 1,
+      m: 0,
+    };
+    await slackApp.scanAndSchedule(time);
   });
 })();
