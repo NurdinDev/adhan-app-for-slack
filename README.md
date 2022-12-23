@@ -68,6 +68,10 @@ I use serverless framework to deploy to aws lambda and setup ApiGateway with Clo
 
 I started this project in the seek of learning and trying out SlackAPI, the project is useful for some people and I love open source which is making me decide to open source this project and open it to anyone who needs to contribute and add feature or fix a bug.
 
+## Credits
+
+Credit for the [Adhan-js](https://github.com/batoulapps/adhan-js) package, a well-documented library for calculating Islamic prayer times in JavaScript using Node.
+
 ## TODO
 
 - [ ] - CI/CD
