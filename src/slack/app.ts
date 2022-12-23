@@ -245,18 +245,25 @@ export class SlackApp {
     installation: Installation<AuthVersion, boolean>,
     logger?: Logger,
   ) {
-    const teamId = getTeamForInstallation(installation);
+    const team = getTeamForInstallation(installation);
 
-    const existInformation = await this.queryInstallationFromDB(teamId, logger);
+    const existInformation = await this.queryInstallationFromDB(
+      team.id,
+      logger,
+    );
     if (existInformation) {
-      await this.deleteInstallationFromDB(teamId, logger);
+      await this.deleteInstallationFromDB(team.id, logger);
     }
     const info = JSON.stringify(installation);
     const encInfo = this.#encrypted.encodeInformation<string>(info);
     try {
       const collection = await this.installationCollection();
       collection.createIndex({ teamId: 1 }, { unique: true });
-      await collection.insertOne({ teamId, data: encInfo });
+      await collection.insertOne({
+        teamId: team.id,
+        name: team?.name || '',
+        data: encInfo,
+      });
     } catch (exception) {
       logger?.error('add team information error:', JSON.stringify(exception));
     }

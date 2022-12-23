@@ -45,10 +45,10 @@ export function getTeamForInstallation(installation: Installation) {
     installation.isEnterpriseInstall &&
     installation.enterprise !== undefined
   ) {
-    return installation.enterprise.id;
+    return installation.enterprise;
   }
   if (installation.team !== undefined) {
-    return installation.team.id;
+    return installation.team;
   }
 
   throw new Error('Could not find a valid team id in the payload request');

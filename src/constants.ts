@@ -28,6 +28,7 @@ export const COLLECTIONS = {
 
 export interface installationSchema {
   teamId: string;
+  name: string;
   data: string;
 }
 
