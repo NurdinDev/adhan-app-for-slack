@@ -59,7 +59,6 @@ export const calculationMethod = {
   Singapore: 'Singapore',
   Tehran: 'Tehran',
   Turkey: 'Turkey',
-  Other: 'Other',
 } as const;
 
 export type calculationMethod = keyof typeof calculationMethod;
