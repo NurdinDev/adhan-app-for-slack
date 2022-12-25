@@ -75,6 +75,7 @@ Credit for the [Adhan-js](https://github.com/batoulapps/adhan-js) package, a wel
 ## TODO
 
 - [ ] - CI/CD
+- [ ] - Autodetect calculation method depend on location or timezone
 - [ ] - Refactoring and use logger instead of console.logs
 - [ ] - Support Turkish language
 
