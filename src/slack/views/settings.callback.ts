@@ -135,8 +135,7 @@ export const settingsViewCallback: Middleware<
       }
 
       const messageScheduler = new MessageScheduler(client, logger);
-      // don't await this function
-      messageScheduler.reScheduleMessages(userId, teamId, reminderList);
+      await messageScheduler.reScheduleMessages(userId, teamId, reminderList);
     }
   } catch (error) {
     logger.error(error);
