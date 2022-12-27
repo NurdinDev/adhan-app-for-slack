@@ -74,7 +74,9 @@ Credit for the [Adhan-js](https://github.com/batoulapps/adhan-js) package, a wel
 
 ## TODO
 
+- [ ] - Replace momentjs
 - [ ] - CI/CD
+- [ ] - Add hijri date
 - [ ] - Autodetect calculation method depend on location or timezone
 - [ ] - Refactoring and use logger instead of console.logs
 - [ ] - Support Turkish language
