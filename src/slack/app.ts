@@ -98,7 +98,9 @@ export class SlackApp {
           calculationMethod,
           language,
         } = user;
-        if (!coordinates || !reminderList) return;
+        if (!coordinates || !reminderList) continue;
+
+        console.log('User: ' + user.userId);
 
         const adhan = new Adhan(
           new Coordinates(coordinates.latitude, coordinates.longitude),
@@ -109,14 +111,14 @@ export class SlackApp {
 
         if (adhan.nextPrayer === 'none') {
           console.log('No prayer time for today');
-          return;
+          continue;
         }
 
         const token = await this.getAuthToken(teamId);
 
         if (!token) {
           console.log('No token found for team: ' + teamId);
-          return;
+          continue;
         }
 
         const messageScheduler = new MessageScheduler(

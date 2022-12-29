@@ -159,6 +159,7 @@ export class MessageScheduler {
       { teamId, userId },
       {
         $set: {
+          lastScheduledMessages: new Date(),
           'messages.fajr': messagesMap.get('fajr'),
           'messages.sunrise': messagesMap.get('sunrise'),
           'messages.dhuhr': messagesMap.get('dhuhr'),

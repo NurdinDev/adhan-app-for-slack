@@ -5,6 +5,7 @@ import {
   Prayer,
   PrayerTimes,
 } from 'adhan';
+import { utcToZonedTime } from 'date-fns-tz';
 import moment from 'moment-timezone';
 import {
   calculationMethod,
@@ -28,10 +29,10 @@ export class Adhan {
     this.timeZone = timeZone;
 
     this.language = language;
-    const date = moment().tz(timeZone).toDate();
+
     this.prayerTimes = new PrayerTimes(
       coordinates,
-      date,
+      utcToZonedTime(new Date(), timeZone),
       this.getMethod(calculationParameters),
     );
   }

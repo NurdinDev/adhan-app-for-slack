@@ -42,6 +42,7 @@ export interface userSchema {
   calculationMethod: calculationMethod;
   reminderList?: prayerWithoutNone[];
   messages?: Record<prayerWithoutNone, string[]>;
+  lastScheduledMessages?: Date;
   language: ILanguages;
 }
 
