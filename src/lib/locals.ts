@@ -41,7 +41,7 @@ export const LOCALS = {
   },
   LEFT_FOR_PRAYER: {
     en: 'left for',
-    ar: 'الوقت المتبقي لرفع أذان',
+    ar: ' لرفع أذان',
   },
   PRAYER_TIMES_FOR_TODAY: {
     en: 'Prayer Times for Today',

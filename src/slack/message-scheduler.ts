@@ -1,7 +1,8 @@
 import { Block, KnownBlock } from '@slack/bolt';
 import { Logger, WebClient } from '@slack/web-api';
 import { Coordinates } from 'adhan';
-import moment from 'moment-timezone';
+import { isBefore, sub } from 'date-fns';
+import { format, utcToZonedTime } from 'date-fns-tz';
 import { BlockCollection, Blocks } from 'slack-block-builder';
 import {
   COLLECTIONS,
@@ -16,7 +17,7 @@ import { LOCALS } from '../lib/locals';
 import { getReadableName } from '../lib/utils';
 
 export class MessageScheduler {
-  constructor(private client: WebClient, private logger: Logger) {}
+  constructor(private client: WebClient, private logger: Logger) { }
 
   /**
    * handle sending sequence of messages, first message is the reminder before 10 minutes
@@ -45,16 +46,14 @@ export class MessageScheduler {
         `🕌 ${LOCALS.REMINDER.FIRST[language]}, ${getReadableName(
           prayerName,
           language,
-        )} ${LOCALS.REMINDER.IN[language]} ${minutesOffset} ${
-          LOCALS.REMINDER.MINUTES[language]
+        )} ${LOCALS.REMINDER.IN[language]} ${minutesOffset} ${LOCALS.REMINDER.MINUTES[language]
         }`,
         BlockCollection(
           Blocks.Section().text(
             `*${LOCALS.REMINDER.FIRST[language]}*\n ${getReadableName(
               prayerName,
               language,
-            )} ${LOCALS.REMINDER.IN[language]} ${minutesOffset} ${
-              LOCALS.REMINDER.MINUTES[language]
+            )} ${LOCALS.REMINDER.IN[language]} ${minutesOffset} ${LOCALS.REMINDER.MINUTES[language]
             }`,
           ),
         ),
@@ -123,7 +122,10 @@ export class MessageScheduler {
         const timeForPrayer = adhan.prayerTimes.timeForPrayer(prayerName);
         // if the time in the past, skip it
         if (
-          moment(timeForPrayer).isBefore(moment().subtract(minutesOffset, 'm'))
+          timeForPrayer &&
+          isBefore(timeForPrayer, sub(new Date(), {
+            minutes: minutesOffset,
+          }))
         ) {
           continue;
         }
@@ -182,9 +184,10 @@ export class MessageScheduler {
 
   private formatDateToTime(date: Date, timezone?: string) {
     if (timezone) {
-      return moment(date).tz(timezone).format('HH:mm');
+      const zonedDate = utcToZonedTime(date, timezone)
+      return format(zonedDate, 'HH:mm', { timeZone: timezone });
     }
-    return moment(date).format('HH:mm');
+    return format(date, 'HH:mm');
   }
 
   private convertUnixTimestamp(date: Date) {

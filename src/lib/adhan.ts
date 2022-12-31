@@ -5,8 +5,9 @@ import {
   Prayer,
   PrayerTimes,
 } from 'adhan';
-import { utcToZonedTime } from 'date-fns-tz';
-import moment from 'moment-timezone';
+import { formatDistanceToNow } from 'date-fns';
+import { format, utcToZonedTime } from 'date-fns-tz';
+import arLocale from 'date-fns/locale/ar'
 import {
   calculationMethod,
   ILanguages,
@@ -37,8 +38,9 @@ export class Adhan {
     );
   }
 
-  private formatTime(time: Date): string {
-    return moment(time).tz(this.timeZone).format('h:mm A');
+  private formatZonedDate(time: Date, f = 'hh:mm a'): string {
+    const zonedDate = utcToZonedTime(time, this.timeZone)
+    return format(zonedDate, f);
   }
 
   getAllPrayerTimes(): PrayerTimes {
@@ -46,9 +48,8 @@ export class Adhan {
   }
 
   get currentDate(): string {
-    return moment(this.prayerTimes.date)
-      .tz(this.timeZone)
-      .format('MMMM DD, YYYY');
+    // return this.formatZonedDate(this.prayerTimes.date, 'MMMM dd, yyyy');
+    return ''
   }
 
   get getCurrentPrayer() {
@@ -56,27 +57,27 @@ export class Adhan {
   }
 
   get getFajr(): string {
-    return this.formatTime(this.prayerTimes.fajr);
+    return this.formatZonedDate(this.prayerTimes.fajr);
   }
 
   get getSunrise(): string {
-    return this.formatTime(this.prayerTimes.sunrise);
+    return this.formatZonedDate(this.prayerTimes.sunrise);
   }
 
   get getDhuhr(): string {
-    return this.formatTime(this.prayerTimes.dhuhr);
+    return this.formatZonedDate(this.prayerTimes.dhuhr);
   }
 
   get getAsr(): string {
-    return this.formatTime(this.prayerTimes.asr);
+    return this.formatZonedDate(this.prayerTimes.asr);
   }
 
   get getMaghrib(): string {
-    return this.formatTime(this.prayerTimes.maghrib);
+    return this.formatZonedDate(this.prayerTimes.maghrib);
   }
 
   get getIsha(): string {
-    return this.formatTime(this.prayerTimes.isha);
+    return this.formatZonedDate(this.prayerTimes.isha);
   }
 
   get nextPayerTimeAndRemaining(): Record<string, string> | null {
@@ -159,12 +160,12 @@ export class Adhan {
     if (!prayerTime) {
       return '';
     }
-    const remainingMinutes = moment(prayerTime).diff(moment(), 'minutes');
-    const hours = Math.floor(remainingMinutes / 60);
 
-    const minutes = remainingMinutes % 60;
-    return `${hours ? `${hours.toString().padStart(2, '0')}` : '00'}:${minutes
-      .toString()
-      .padStart(2, '0')}`;
+    if (this.language === 'ar') {
+      return formatDistanceToNow(prayerTime, {
+        locale: arLocale
+      })
+    }
+    return formatDistanceToNow(prayerTime)
   }
 }
