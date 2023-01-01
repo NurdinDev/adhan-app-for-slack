@@ -135,17 +135,18 @@ export class SlackApp {
   }
 
   registerEvents() {
+    const logger = new ConsoleLogger()
     this.app.event('app_home_opened', homeOpenedEvent);
     this.app.event('app_uninstalled', async ({ body }) => {
-      console.log('app_uninstalled', body);
+      logger.info('app_uninstalled');
       if (body.team_id) {
-        await this.deleteInstallationFromDB(body.team_id, new ConsoleLogger());
+        await this.deleteInstallationAndUsersFromDB(body.team_id, logger);
       }
     });
     this.app.event('tokens_revoked', async ({ body }) => {
-      console.log('tokens_revoked', body);
+      logger.info('tokens_revoke');
       if (body.team_id) {
-        await this.deleteInstallationFromDB(body.team_id, new ConsoleLogger());
+        await this.deleteInstallationFromDB(body.team_id, logger);
       }
     });
     this.app.view(settingsView.callbackId, settingsViewCallback);
@@ -172,8 +173,9 @@ export class SlackApp {
     installQuery: InstallationQuery<boolean>,
     logger?: Logger,
   ) {
+    logger?.info('deleting installation and users from db', installQuery);
     const teamId = getTeamIdForInstallQuery(installQuery);
-    await this.deleteInstallationFromDB(teamId, logger);
+    await this.deleteInstallationAndUsersFromDB(teamId, logger);
     return;
   }
 
@@ -230,12 +232,22 @@ export class SlackApp {
     }
   }
 
-  private async deleteInstallationFromDB(teamId: string, logger?: Logger) {
+  private async deleteInstallationAndUsersFromDB(teamId: string, logger?: Logger) {
     try {
       const collection = await this.installationCollection();
       await collection.deleteOne({ teamId });
       const userCollection = await this.usersCollection();
       await userCollection.deleteMany({ teamId });
+      logger?.info(`delete team ${teamId} and users success`);
+    } catch (exception) {
+      logger?.info('delete team information error:', JSON.stringify(exception));
+    }
+    return null;
+  }
+  private async deleteInstallationFromDB(teamId: string, logger?: Logger) {
+    try {
+      const collection = await this.installationCollection();
+      await collection.deleteOne({ teamId });
       logger?.info(`delete team ${teamId} information success`);
     } catch (exception) {
       logger?.info('delete team information error:', JSON.stringify(exception));
