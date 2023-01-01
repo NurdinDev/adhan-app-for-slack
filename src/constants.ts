@@ -41,7 +41,7 @@ export interface userSchema {
   coordinates: Coordinates;
   calculationMethod: calculationMethod;
   reminderList?: prayerWithoutNone[];
-  messages?: Record<prayerWithoutNone, string[]>;
+  messages?: Record<prayerWithoutNone, string>;
   lastScheduledMessages?: Date;
   language: ILanguages;
 }

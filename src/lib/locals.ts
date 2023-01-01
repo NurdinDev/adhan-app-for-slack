@@ -64,10 +64,6 @@ export const LOCALS = {
       en: 'Time Sensitive',
       ar: 'موعد الأذان اقترب',
     },
-    SECOND: {
-      en: 'Time Sensitive',
-      ar: 'موعد الأذان اقترب',
-    },
 
     MINUTES: {
       en: 'minutes',

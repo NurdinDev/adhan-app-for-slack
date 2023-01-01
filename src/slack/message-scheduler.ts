@@ -1,8 +1,7 @@
 import { Block, KnownBlock } from '@slack/bolt';
 import { Logger, WebClient } from '@slack/web-api';
 import { Coordinates } from 'adhan';
-import { isBefore, sub } from 'date-fns';
-import { format, utcToZonedTime } from 'date-fns-tz';
+import { addMinutes, formatDistance, getUnixTime, isBefore, sub, subMinutes } from 'date-fns';
 import { BlockCollection, Blocks } from 'slack-block-builder';
 import {
   COLLECTIONS,
@@ -21,7 +20,6 @@ export class MessageScheduler {
 
   /**
    * handle sending sequence of messages, first message is the reminder before 10 minutes
-   * second message is the time of the prayer when actual time is reached
    * @param prayerName prayer name
    * @param date prayer time
    */
@@ -30,59 +28,29 @@ export class MessageScheduler {
     teamId: string,
     prayerName: prayerWithoutNone,
     date: Date,
-    timezone?: string,
     language: ILanguages = 'en',
-  ): Promise<string[]> {
-    const reminderTime = new Date(date);
-    const actualTime = new Date(date);
-    reminderTime.setMinutes(reminderTime.getMinutes() - minutesOffset);
-
-    return await Promise.all([
-      this.scheduleMessage(
-        userId,
-        teamId,
+  ): Promise<string> {
+    const timeOffset = subMinutes(date, minutesOffset)
+    return this.scheduleMessage(
+      userId,
+      teamId,
+      prayerName,
+      getUnixTime(timeOffset),
+      `🕌 ${LOCALS.REMINDER.FIRST[language]}, ${getReadableName(
         prayerName,
-        reminderTime,
-        `🕌 ${LOCALS.REMINDER.FIRST[language]}, ${getReadableName(
-          prayerName,
-          language,
-        )} ${LOCALS.REMINDER.IN[language]} ${minutesOffset} ${LOCALS.REMINDER.MINUTES[language]
-        }`,
-        BlockCollection(
-          Blocks.Section().text(
-            `*${LOCALS.REMINDER.FIRST[language]}*\n ${getReadableName(
-              prayerName,
-              language,
-            )} ${LOCALS.REMINDER.IN[language]} ${minutesOffset} ${LOCALS.REMINDER.MINUTES[language]
-            }`,
-          ),
+        language,
+      )} ${LOCALS.REMINDER.IN[language]} ${minutesOffset} ${LOCALS.REMINDER.MINUTES[language]
+      }`,
+      BlockCollection(
+        Blocks.Section().text(
+          `*${LOCALS.REMINDER.FIRST[language]}*\n ${getReadableName(
+            prayerName,
+            language,
+          )} ${LOCALS.REMINDER.IN[language]} ${minutesOffset} ${LOCALS.REMINDER.MINUTES[language]
+          }`,
         ),
       ),
-      this.scheduleMessage(
-        userId,
-        teamId,
-        prayerName,
-        actualTime,
-        `🕌 ${LOCALS.REMINDER.SECOND[language]}, ${getReadableName(
-          prayerName,
-          language,
-        )} ${LOCALS.REMINDER.AT[language]} ${this.formatDateToTime(
-          date,
-          timezone,
-        )}`,
-        BlockCollection(
-          Blocks.Section().text(
-            `*${LOCALS.REMINDER.SECOND[language]}*\n ${getReadableName(
-              prayerName,
-              language,
-            )} ${LOCALS.REMINDER.AT[language]} ${this.formatDateToTime(
-              date,
-              timezone,
-            )}`,
-          ),
-        ),
-      ),
-    ]);
+    )
   }
 
   async reScheduleMessages(
@@ -106,10 +74,6 @@ export class MessageScheduler {
       await Promise.all(
         Object.values(messages)
           .filter((v) => v !== null)
-          .reduce((acc, value) => {
-            acc.push(...value);
-            return acc;
-          }, [])
           .map((messageId) => this.deleteScheduledMessage(userId, messageId)),
       ).catch((error) => {
         this.logger.error(error);
@@ -130,17 +94,16 @@ export class MessageScheduler {
           continue;
         }
         if (timeForPrayer instanceof Date) {
-          const ids = await this.handleScheduleMessages(
+          const messageId = await this.handleScheduleMessages(
             userId,
             teamId,
             prayerName,
             timeForPrayer,
-            tz,
             language,
           ).catch((error) => {
             this.logger.error(error);
           });
-          messagesMap.set(prayerName, ids);
+          messagesMap.set(prayerName, messageId);
         }
       }
     }
@@ -182,18 +145,6 @@ export class MessageScheduler {
     return user;
   }
 
-  private formatDateToTime(date: Date, timezone?: string) {
-    if (timezone) {
-      const zonedDate = utcToZonedTime(date, timezone)
-      return format(zonedDate, 'HH:mm', { timeZone: timezone });
-    }
-    return format(date, 'HH:mm');
-  }
-
-  private convertUnixTimestamp(date: Date) {
-    return Math.floor(date.getTime() / 1000);
-  }
-
   private async deleteScheduledMessage(userId: string, messageId?: string) {
     if (!messageId) return;
     try {
@@ -218,14 +169,15 @@ export class MessageScheduler {
    * this function will send client.chat.scheduleMessage to slack
    * and it will check if there is an offset, the time will be subtracted by the offset
    * @param prayerName prayer name
-   * @param time time for the prayer
-   * @param minutes offset in minutes
+   * @param time time for the prayer in UNIX time
+   * @param text: the text will appear in notification
+   * @param blocsk: the block will appear in message
    */
   private async scheduleMessage(
     userId: string,
     teamId: string,
     prayerName: string,
-    time: Date,
+    time: number,
     text: string,
     blocks: (KnownBlock | Block)[],
   ): Promise<string> {
@@ -233,7 +185,7 @@ export class MessageScheduler {
       const scheduleMessage = await this.client.chat.scheduleMessage({
         channel: userId,
         team_id: teamId,
-        post_at: this.convertUnixTimestamp(time),
+        post_at: time,
         blocks,
         text,
       });
