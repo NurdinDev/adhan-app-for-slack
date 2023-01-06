@@ -2,7 +2,7 @@
 
 <a href="https://7qx2m6kbf5.execute-api.us-east-1.amazonaws.com/slack/install"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
 
-Adhan Slack App is an Islamic prayer times reminder configurable and sample to use, the App job is to help you remember praying before the next prayer time by sending a friendly notification.
+Adhan Slack App is an Islamic prayer times reminder configurable and simple to use, the App job is to help you remember praying before the next prayer time by sending a friendly notification.
 
 <img src="./assets/cover1.1.png" width="30%"></img>
 <img src="./assets/cover2.2.png" width="30%"></img>
