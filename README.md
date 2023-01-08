@@ -74,6 +74,7 @@ Credit for the [Adhan-js](https://github.com/batoulapps/adhan-js) package, a wel
 
 ## TODO
 
+- [ ] - Add configuration to disable notification on weekend days
 - [ ] - CI/CD
 - [ ] - Add hijri date
 - [ ] - Autodetect calculation method depend on location or timezone
