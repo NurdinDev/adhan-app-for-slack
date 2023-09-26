@@ -9,6 +9,7 @@ import { ConsoleLogger, LogLevel } from '@slack/logger';
 import { WebClient } from '@slack/web-api';
 import { Coordinates } from 'adhan';
 import * as env from 'env-var';
+import { WithId } from 'mongodb';
 import {
   COLLECTIONS,
   actions,
@@ -73,6 +74,11 @@ export class SlackApp {
    * @param time pass the time and minutes to search for users in the same timezone and re-schedule their messages
    * @returns void
    */
+  /**
+   * This function takes a time like 01:00 AM and search for users in the same timezone and re-schedule their messages
+   * @param time pass the time and minutes to search for users in the same timezone and re-schedule their messages
+   * @returns void
+   */
   async scanAndSchedule(time: { h: number; m: number }) {
     // scan for user that have time 01:00 AM and re-schedule their messages
     const expr = {
@@ -89,62 +95,60 @@ export class SlackApp {
     console.log(`Found ${usersCount} users`);
     if (usersCount === 0) return;
 
+    const MAX_PARALLEL_USERS = 10;
     while (await users.hasNext()) {
-      try {
+      const userPromises = [];
+      for (let i = 0; i < MAX_PARALLEL_USERS && (await users.hasNext()); i++) {
         const user = await users.next();
         if (!user) {
           console.log('No user found');
           continue;
         }
+        userPromises.push(async (user: WithId<userSchema>) => {
+          const {
+            userId,
+            teamId,
+            teamName,
+            tz,
+            coordinates,
+            reminderList,
+            calculationMethod,
+            language,
+          } = user;
+          if (!coordinates || !reminderList) return;
 
-        const {
-          userId,
-          teamId,
-          teamName,
-          tz,
-          coordinates,
-          reminderList,
-          calculationMethod,
-          language,
-        } = user;
-        if (!coordinates || !reminderList) continue;
+          const adhan = new Adhan(
+            new Coordinates(coordinates.latitude, coordinates.longitude),
+            calculationMethod,
+            tz,
+            language,
+          );
 
-        console.log('User: ' + user.userId);
+          if (adhan.nextPrayer === 'none') {
+            return;
+          }
 
-        const adhan = new Adhan(
-          new Coordinates(coordinates.latitude, coordinates.longitude),
-          calculationMethod,
-          tz,
-          language,
-        );
+          const token = await this.getAuthToken(teamId);
 
-        if (adhan.nextPrayer === 'none') {
-          console.log('No prayer time for today');
-          continue;
-        }
+          if (!token) {
+            return;
+          }
 
-        const token = await this.getAuthToken(teamId);
+          const messageScheduler = new MessageScheduler(
+            token,
+            new ConsoleLogger(),
+          );
 
-        if (!token) {
-          console.log('No token found for team: ' + teamId);
-          continue;
-        }
-
-        const messageScheduler = new MessageScheduler(
-          token,
-          new ConsoleLogger(),
-        );
-
-        await messageScheduler.scheduleMessages(
-          userId,
-          teamId,
-          teamName,
-          reminderList,
-        );
-      } catch (e) {
-        console.log(e);
-        continue;
+          await messageScheduler.scheduleMessages(
+            userId,
+            teamId,
+            teamName,
+            reminderList,
+          );
+        });
       }
+
+      await Promise.all(userPromises);
     }
   }
 

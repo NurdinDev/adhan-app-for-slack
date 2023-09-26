@@ -1,6 +1,7 @@
 import {
   CloudWatchEventsClient,
   DeleteRuleCommand,
+  ListRulesCommand,
   PutRuleCommand,
   PutRuleCommandInput,
   PutTargetsCommand,
@@ -27,9 +28,18 @@ import {
 import clientPromise from '../db/mongodb';
 import { Adhan } from '../lib/adhan';
 import { isoToAWSCron } from '../lib/utils';
+const BASE_FUNCTION_NAME = `adhan-slack-app-${process.env.STAGE}-slack-post-messages`;
 
 export class MessageScheduler {
   constructor(private token: string, private logger: Logger) {}
+
+  private constructRuleName(
+    teamId: string,
+    userId: string,
+    prayerName: string,
+  ): string {
+    return `${teamId}-${userId}-${prayerName}`;
+  }
 
   /**
    * This function will prepare the next prayer time and schedule it
@@ -55,6 +65,8 @@ export class MessageScheduler {
     if (!coordinates || !calculationMethod) return;
 
     // get the next prayer time
+
+    // get the next prayer time
     const adhan = new Adhan(
       new Coordinates(coordinates.latitude, coordinates.longitude),
       calculationMethod,
@@ -63,32 +75,30 @@ export class MessageScheduler {
     );
 
     // clean up if all scheduled messages
-    await Promise.allSettled(
-      prayerNames.map(async (name) => {
-        const ruleName = `${teamId}-${userId}-${name}`;
-        this.cleanupCloudWatchEvent(
-          `adhan-slack-app-${process.env.STAGE}-slack-post-messages`,
-          ruleName,
-        );
-      }),
-    );
+    const cleanupPromises = prayerNames.map(async (name) => {
+      const ruleName = this.constructRuleName(teamId, userId, name);
+      try {
+        await this.cleanupCloudWatchEvent(BASE_FUNCTION_NAME, ruleName);
+      } catch (error) {
+        this.logger.error(`Error cleaning up event for ${ruleName}: ${error}`);
+      }
+    });
+
+    await Promise.allSettled(cleanupPromises);
     // if there is no prayer time for today, skip it
-    if (adhan.nextPrayer === 'none') {
+    if (adhan.nextPrayer === 'none' || !nextPrayersList?.length) {
       return;
     }
 
     this.logger.info(`Scheduling messages for user ${userId}`);
-    for (const prayerName of nextPrayersList) {
-      this.logger.info(`Checking prayer ${prayerName} for user ${userId}`);
+
+    const schedulingPromises = nextPrayersList.map(async (prayerName) => {
       const timeForPrayer = adhan.prayerTimes.timeForPrayer(prayerName);
 
       if (!timeForPrayer) {
-        this.logger.error(
-          `Error getting time for prayer ${prayerName} for user ${userId}`,
-        );
-        continue;
+        return;
       }
-      // if the time in the past, skip it
+
       if (
         timeForPrayer &&
         isBefore(
@@ -101,9 +111,8 @@ export class MessageScheduler {
         this.logger.info(
           `Prayer ${prayerName} is in the past for user ${userId}`,
         );
-        continue;
+        return;
       }
-
       try {
         await this.scheduleMessage(
           userId,
@@ -116,9 +125,10 @@ export class MessageScheduler {
         );
       } catch (error) {
         this.logger.error(error);
-        continue;
       }
-    }
+    });
+
+    await Promise.allSettled(schedulingPromises);
   }
 
   private async getUserFromDb(userId: string, teamId?: string) {
@@ -142,42 +152,35 @@ export class MessageScheduler {
     this.logger.info(`Cleaning up CloudWatchEvent for rule ${ruleName}`);
     const eventBridgeClient = new CloudWatchEventsClient();
     const lambdaClient = new LambdaClient();
+    const listRulesCommand = new ListRulesCommand({});
+    const response = await eventBridgeClient.send(listRulesCommand);
+    console.log(response.Rules);
 
-    try {
-      // 1. Remove the target from the rule
-      const removeTargetsCommand = new RemoveTargetsCommand({
-        Rule: ruleName,
-        Ids: ['1'],
-      });
-      await eventBridgeClient.send(removeTargetsCommand);
-    } catch (error) {
-      // if failed to remove the target, log the error and continue.
-      this.logger.error(error);
-    }
+    if (!response.Rules?.length) return;
 
-    try {
-      // 2. Delete the rule
-      const deleteRuleCommand = new DeleteRuleCommand({
-        Name: ruleName,
-      });
-      await eventBridgeClient.send(deleteRuleCommand);
-    } catch (error) {
-      // if failed to delete the rule, log the error and continue.
-      this.logger.error(error);
-    }
+    if (!response.Rules.find((rule) => rule.Name === ruleName)) return;
 
-    try {
-      // 3. Remove the permission from the Lambda function
-      const statementId = `${ruleName}-SID`;
-      const removePermissionCommand = new RemovePermissionCommand({
-        FunctionName: lambdaFunctionName,
-        StatementId: statementId,
-      });
+    // 1. Remove the target from the rule
+    const removeTargetsCommand = new RemoveTargetsCommand({
+      Rule: ruleName,
+      Ids: ['1'],
+    });
+    await eventBridgeClient.send(removeTargetsCommand);
 
-      await lambdaClient.send(removePermissionCommand);
-    } catch (error) {
-      this.logger.error(error);
-    }
+    // 2. Delete the rule
+    const deleteRuleCommand = new DeleteRuleCommand({
+      Name: ruleName,
+    });
+    await eventBridgeClient.send(deleteRuleCommand);
+
+    // 3. Remove the permission from the Lambda function
+    const statementId = `${ruleName}-SID`;
+    const removePermissionCommand = new RemovePermissionCommand({
+      FunctionName: lambdaFunctionName,
+      StatementId: statementId,
+    });
+
+    await lambdaClient.send(removePermissionCommand);
   }
 
   private async createCloudWatchEvent(
@@ -267,6 +270,8 @@ export class MessageScheduler {
    * @param prayerName prayer name
    * @param timeForPrayer time for the prayer in UNIX time
    *
+   * @param timeForPrayer time for the prayer in UNIX time
+   *
    */
   private async scheduleMessage(
     userId: string,
@@ -278,30 +283,23 @@ export class MessageScheduler {
     tz?: string,
   ) {
     this.logger.info(`Scheduling prayer ${prayerName} for user ${userId}`);
-    try {
-      const body = {
-        userId,
-        teamId,
-        prayerName,
-        timeForPrayer,
-        language,
-        tz,
-        teamName,
-      };
-      const scheduleAt = subMinutes(timeForPrayer, minutesOffset);
-      const ruleName = `${teamId}-${userId}-${prayerName}`;
+    const body = {
+      userId,
+      teamId,
+      prayerName,
+      timeForPrayer,
+      language,
+      tz,
+      teamName,
+    };
+    const scheduleAt = subMinutes(timeForPrayer, minutesOffset);
+    const ruleName = this.constructRuleName(teamId, userId, prayerName);
 
-      const functionName = `adhan-slack-app-${process.env.STAGE}-slack-post-messages`;
-
-      await this.createCloudWatchEvent(
-        functionName,
-        ruleName,
-        scheduleAt,
-        body,
-      );
-    } catch (error) {
-      this.logger.error(error);
-      throw error;
-    }
+    await this.createCloudWatchEvent(
+      BASE_FUNCTION_NAME,
+      ruleName,
+      scheduleAt,
+      body,
+    );
   }
 }

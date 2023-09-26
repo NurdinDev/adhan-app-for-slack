@@ -16,8 +16,6 @@ plugins:
   - serverless-offline
 
 custom:
-  eventbridge:
-    debug: true
   serverless-offline:
     httpPort: ${env:PORT, 3000}
     babelOptions:
@@ -58,12 +56,7 @@ functions:
           - events:DeleteRule
           - events:RemoveTargets
         Resource:
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-sunrise'
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-fajr'
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-dhuhr'
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-asr'
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-maghrib'
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-isha'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*'
 
       - Effect: Allow
         Action:
@@ -74,6 +67,24 @@ functions:
     handler: src/serverless/slack-cron.handler
     events:
       - schedule: ${self:custom.schedule}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - events:PutTargets
+          - events:PutRule
+          - events:RemoveTargets
+          - events:DescribeRule
+          - events:TagResource
+          - events:DeleteRule
+          - events:ListRules
+        Resource:
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*'
+
+      - Effect: Allow
+        Action:
+          - lambda:AddPermission
+          - lambda:RemovePermission
+        Resource: 'arn:aws:lambda:${self:provider.region}:${env:AWS_ACCOUNT_ID}:function:${self:service}-${sls:stage}-slack-post-messages'
 
   slack-handler:
     handler: src/serverless/slack-handler.handler
@@ -96,13 +107,9 @@ functions:
           - events:DescribeRule
           - events:TagResource
           - events:DeleteRule
+          - events:ListRules
         Resource:
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-sunrise'
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-fajr'
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-dhuhr'
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-asr'
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-maghrib'
-          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-isha'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*'
 
       - Effect: Allow
         Action:
