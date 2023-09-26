@@ -5,11 +5,12 @@ import {
 } from '@slack/bolt';
 import { Coordinates } from 'adhan';
 import {
-  calculationMethod,
   COLLECTIONS,
   ILanguages,
+  calculationMethod,
   prayerWithoutNone,
   settingsView,
+  userSchema,
 } from '../../constants';
 import clientPromise from '../../db/mongodb';
 import { Adhan } from '../../lib/adhan';
@@ -21,12 +22,12 @@ export const settingsViewCallback: Middleware<
   SlackViewMiddlewareArgs<ViewSubmitAction>
 > = async ({ ack, view, body, client, logger }) => {
   const userId = body.user.id;
-  const teamId = getTeamIdViewSubmitAction(body);
+  const { id, name } = getTeamIdViewSubmitAction(body);
 
   const mongoClient = await clientPromise;
   const db = mongoClient.db();
 
-  const userCollection = db.collection(COLLECTIONS.users);
+  const userCollection = db.collection<userSchema>(COLLECTIONS.users);
 
   try {
     const {
@@ -114,17 +115,19 @@ export const settingsViewCallback: Middleware<
         await userCollection.updateOne(
           {
             userId,
-            teamId,
+            teamId: id,
           },
           {
             $set: {
               userId,
-              teamId,
+              teamId: id,
+              teamName: name,
               coordinates,
-              calculationMethod: calculationMethodOption.value,
+              calculationMethod:
+                calculationMethodOption.value as keyof typeof calculationMethod,
               reminderList,
               tz: userInfo.user?.tz,
-              language: languageOption?.value || 'en',
+              language: (languageOption?.value ?? 'en') as ILanguages,
             },
           },
           { upsert: true },
@@ -134,8 +137,12 @@ export const settingsViewCallback: Middleware<
         logger.error('Error while updating user settings', e);
       }
 
-      const messageScheduler = new MessageScheduler(client, logger);
-      await messageScheduler.reScheduleMessages(userId, teamId, reminderList);
+      if (!client?.token) {
+        logger.error('No token found for team: ' + id);
+        return;
+      }
+      const messageScheduler = new MessageScheduler(client.token, logger);
+      await messageScheduler.scheduleMessages(userId, id, name, reminderList);
     }
   } catch (error) {
     logger.error(error);

@@ -7,12 +7,12 @@ import {
 } from 'adhan';
 import { formatDistanceToNow } from 'date-fns';
 import { format, utcToZonedTime } from 'date-fns-tz';
-import arLocale from 'date-fns/locale/ar'
+import arLocale from 'date-fns/locale/ar';
 import {
-  calculationMethod,
   ILanguages,
-  prayerWithoutNone,
   ValueOf,
+  calculationMethod,
+  prayerWithoutNone,
 } from '../constants';
 import { LOCALS } from './locals';
 import { getReadableName } from './utils';
@@ -39,7 +39,7 @@ export class Adhan {
   }
 
   private formatZonedDate(time: Date, f = 'hh:mm a'): string {
-    const zonedDate = utcToZonedTime(time, this.timeZone)
+    const zonedDate = utcToZonedTime(time, this.timeZone);
     return format(zonedDate, f);
   }
 
@@ -49,7 +49,7 @@ export class Adhan {
 
   get currentDate(): string {
     // return this.formatZonedDate(this.prayerTimes.date, 'MMMM dd, yyyy');
-    return ''
+    return '';
   }
 
   get getCurrentPrayer() {
@@ -163,9 +163,9 @@ export class Adhan {
 
     if (this.language === 'ar') {
       return formatDistanceToNow(prayerTime, {
-        locale: arLocale
-      })
+        locale: arLocale,
+      });
     }
-    return formatDistanceToNow(prayerTime)
+    return formatDistanceToNow(prayerTime);
   }
 }

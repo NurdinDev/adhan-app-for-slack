@@ -1,8 +1,8 @@
 import { Coordinates, Prayer } from 'adhan';
 import { Bits, Blocks, Elements, Modal } from 'slack-block-builder';
 import {
-  calculationMethod,
   ILanguages,
+  calculationMethod,
   minutesOffset,
   prayerWithoutNone,
   settingsView,

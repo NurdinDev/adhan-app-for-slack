@@ -1,12 +1,31 @@
+org: nurdin
+app: adhan-slack-app
 service: adhan-slack-app
+
+# Framework version constraint (semver constraint): '3', '^2.33'
+frameworkVersion: '3'
+# Load environment variables from .env files (default: false)
+# See https://www.serverless.com/framework/docs/environment-variables
+useDotenv: true
+# 'warn' reports deprecations on the go, 'error' will result with an exception being thrown on first approached deprecation
+deprecationNotificationMode: warn:summary
 
 plugins:
   - serverless-plugin-typescript
+  - serverless-iam-roles-per-function
   - serverless-offline
 
 custom:
+  eventbridge:
+    debug: true
+  serverless-offline:
+    httpPort: ${env:PORT, 3000}
+    babelOptions:
+      presets: ['env']
+
   schedule_enabled:
     prod: true
+    dev: false
 
   schedule:
     name: 'adhan-slack-app-daily-scheduler-${sls:stage}'
@@ -17,7 +36,8 @@ custom:
 provider:
   name: aws
   runtime: nodejs18.x
-  stage: prod
+  region: us-east-1
+  stage: ${env:STAGE}
   environment:
     SLACK_SIGNING_SECRET: ${env:SLACK_SIGNING_SECRET}
     SLACK_CLIENT_ID: ${env:SLACK_CLIENT_ID}
@@ -26,12 +46,35 @@ provider:
     CRYPTO_SECRET: ${env:CRYPTO_SECRET}
     CRYPTO_SALT: ${env:CRYPTO_SALT}
     MONGODB_URI: ${env:MONGODB_URI}
+    AWS_ACCOUNT_ID: ${env:AWS_ACCOUNT_ID}
+    STAGE: ${env:STAGE}
 
 functions:
+  slack-post-messages:
+    handler: src/serverless/slack-post-messages.handler
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - events:DeleteRule
+          - events:RemoveTargets
+        Resource:
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-sunrise'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-fajr'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-dhuhr'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-asr'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-maghrib'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-isha'
+
+      - Effect: Allow
+        Action:
+          - lambda:RemovePermission
+        Resource: 'arn:aws:lambda:${self:provider.region}:${env:AWS_ACCOUNT_ID}:function:${self:service}-${sls:stage}-slack-post-messages'
+
   slack-cron:
     handler: src/serverless/slack-cron.handler
     events:
       - schedule: ${self:custom.schedule}
+
   slack-handler:
     handler: src/serverless/slack-handler.handler
     events:
@@ -44,3 +87,25 @@ functions:
       - httpApi:
           method: get
           path: /slack/oauth_redirect
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - events:PutTargets
+          - events:PutRule
+          - events:RemoveTargets
+          - events:DescribeRule
+          - events:TagResource
+          - events:DeleteRule
+        Resource:
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-sunrise'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-fajr'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-dhuhr'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-asr'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-maghrib'
+          - 'arn:aws:events:${self:provider.region}:${env:AWS_ACCOUNT_ID}:rule/*-*-isha'
+
+      - Effect: Allow
+        Action:
+          - lambda:AddPermission
+          - lambda:RemovePermission
+        Resource: 'arn:aws:lambda:${self:provider.region}:${env:AWS_ACCOUNT_ID}:function:${self:service}-${sls:stage}-slack-post-messages'

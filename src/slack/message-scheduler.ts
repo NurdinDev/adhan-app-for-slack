@@ -1,203 +1,304 @@
-import { Block, KnownBlock } from '@slack/bolt';
-import { Logger, WebClient } from '@slack/web-api';
-import { Coordinates } from 'adhan';
-import { addMinutes, formatDistance, getUnixTime, isBefore, sub, subMinutes } from 'date-fns';
-import { BlockCollection, Blocks } from 'slack-block-builder';
 import {
+  CloudWatchEventsClient,
+  DeleteRuleCommand,
+  PutRuleCommand,
+  PutRuleCommandInput,
+  PutTargetsCommand,
+  RemoveTargetsCommand,
+} from '@aws-sdk/client-cloudwatch-events';
+import {
+  AddPermissionCommand,
+  LambdaClient,
+  RemovePermissionCommand,
+} from '@aws-sdk/client-lambda';
+import { Logger } from '@slack/web-api';
+import { Coordinates } from 'adhan';
+import { isBefore, sub, subMinutes } from 'date-fns';
+import {
+  AWS_ACCOUNT_ID,
+  AWS_REGION,
   COLLECTIONS,
   ILanguages,
   minutesOffset,
+  prayerNames,
   prayerWithoutNone,
   userSchema,
 } from '../constants';
 import clientPromise from '../db/mongodb';
 import { Adhan } from '../lib/adhan';
-import { LOCALS } from '../lib/locals';
-import { getReadableName } from '../lib/utils';
+import { isoToAWSCron } from '../lib/utils';
 
 export class MessageScheduler {
-  constructor(private client: WebClient, private logger: Logger) { }
+  constructor(private token: string, private logger: Logger) {}
 
   /**
-   * handle sending sequence of messages, first message is the reminder before 10 minutes
-   * @param prayerName prayer name
-   * @param date prayer time
+   * This function will prepare the next prayer time and schedule it
+   * @param userId the user id
+   * @param teamId the team id
+   * @param nextPrayersList the list of the prayer that will be scheduled
+   * @returns
    */
-  private async handleScheduleMessages(
+  async scheduleMessages(
     userId: string,
     teamId: string,
-    prayerName: prayerWithoutNone,
-    date: Date,
-    language: ILanguages = 'en',
-  ): Promise<string> {
-    const timeOffset = subMinutes(date, minutesOffset)
-    return this.scheduleMessage(
-      userId,
-      teamId,
-      prayerName,
-      getUnixTime(timeOffset),
-      `🕌 ${LOCALS.REMINDER.FIRST[language]}, ${getReadableName(
-        prayerName,
-        language,
-      )} ${LOCALS.REMINDER.IN[language]} ${minutesOffset} ${LOCALS.REMINDER.MINUTES[language]
-      }`,
-      BlockCollection(
-        Blocks.Section().text(
-          `*${LOCALS.REMINDER.FIRST[language]}*\n ${getReadableName(
-            prayerName,
-            language,
-          )} ${LOCALS.REMINDER.IN[language]} ${minutesOffset} ${LOCALS.REMINDER.MINUTES[language]
-          }`,
-        ),
-      ),
-    )
-  }
-
-  async reScheduleMessages(
-    userId: string,
-    teamId: string,
+    teamName: string,
     nextPrayersList?: prayerWithoutNone[],
   ) {
+    if (!nextPrayersList?.length) {
+      this.logger.info(`No prayers to schedule for user ${userId}`);
+      // TODO: unschedule jobs if there is
+      return;
+    }
     const user = await this.getUserFromDb(userId, teamId);
     if (!user) return;
-    const { messages, coordinates, tz, calculationMethod, language } = user;
+    const { coordinates, tz, calculationMethod, language = 'en' } = user;
     if (!coordinates || !calculationMethod) return;
+
+    // get the next prayer time
     const adhan = new Adhan(
       new Coordinates(coordinates.latitude, coordinates.longitude),
       calculationMethod,
       tz,
       language,
     );
-    if (adhan.nextPrayer === 'none') return;
 
-    if (messages) {
-      await Promise.all(
-        Object.values(messages)
-          .filter((v) => v !== null)
-          .map((messageId) => this.deleteScheduledMessage(userId, messageId)),
-      ).catch((error) => {
-        this.logger.error(error);
-      });
+    // clean up if all scheduled messages
+    await Promise.allSettled(
+      prayerNames.map(async (name) => {
+        const ruleName = `${teamId}-${userId}-${name}`;
+        this.cleanupCloudWatchEvent(
+          `adhan-slack-app-${process.env.STAGE}-slack-post-messages`,
+          ruleName,
+        );
+      }),
+    );
+    // if there is no prayer time for today, skip it
+    if (adhan.nextPrayer === 'none') {
+      return;
     }
 
-    const messagesMap = new Map();
-    if (nextPrayersList?.length) {
-      for (const prayerName of nextPrayersList) {
-        const timeForPrayer = adhan.prayerTimes.timeForPrayer(prayerName);
-        // if the time in the past, skip it
-        if (
-          timeForPrayer &&
-          isBefore(timeForPrayer, sub(new Date(), {
+    this.logger.info(`Scheduling messages for user ${userId}`);
+    for (const prayerName of nextPrayersList) {
+      this.logger.info(`Checking prayer ${prayerName} for user ${userId}`);
+      const timeForPrayer = adhan.prayerTimes.timeForPrayer(prayerName);
+
+      if (!timeForPrayer) {
+        this.logger.error(
+          `Error getting time for prayer ${prayerName} for user ${userId}`,
+        );
+        continue;
+      }
+      // if the time in the past, skip it
+      if (
+        timeForPrayer &&
+        isBefore(
+          timeForPrayer,
+          sub(new Date(), {
             minutes: minutesOffset,
-          }))
-        ) {
-          continue;
-        }
-        if (timeForPrayer instanceof Date) {
-          const messageId = await this.handleScheduleMessages(
-            userId,
-            teamId,
-            prayerName,
-            timeForPrayer,
-            language,
-          ).catch((error) => {
-            this.logger.error(error);
-          });
-          messagesMap.set(prayerName, messageId);
-        }
+          }),
+        )
+      ) {
+        this.logger.info(
+          `Prayer ${prayerName} is in the past for user ${userId}`,
+        );
+        continue;
+      }
+
+      try {
+        await this.scheduleMessage(
+          userId,
+          teamId,
+          teamName,
+          prayerName,
+          timeForPrayer,
+          language,
+          user.tz,
+        );
+      } catch (error) {
+        this.logger.error(error);
+        continue;
       }
     }
-
-    await this.updateUserMessages(userId, teamId, messagesMap);
-  }
-
-  private async updateUserMessages(
-    userId: string,
-    teamId: string,
-    messagesMap: Map<prayerWithoutNone, string>,
-  ) {
-    const mongoClient = await clientPromise;
-    const db = mongoClient.db();
-    // update the user with the scheduled messages ids
-    const userCollection = db.collection<userSchema>(COLLECTIONS.users);
-    await userCollection.updateOne(
-      { teamId, userId },
-      {
-        $set: {
-          lastScheduledMessages: new Date(),
-          'messages.fajr': messagesMap.get('fajr'),
-          'messages.sunrise': messagesMap.get('sunrise'),
-          'messages.dhuhr': messagesMap.get('dhuhr'),
-          'messages.asr': messagesMap.get('asr'),
-          'messages.maghrib': messagesMap.get('maghrib'),
-          'messages.isha': messagesMap.get('isha'),
-        },
-      },
-    );
   }
 
   private async getUserFromDb(userId: string, teamId?: string) {
     // get user from db
-    const mongoClient = await clientPromise;
-    const db = mongoClient.db();
-    const userCollection = db.collection<userSchema>(COLLECTIONS.users);
-    const user = await userCollection.findOne({ userId, teamId });
-    return user;
+    try {
+      const mongoClient = await clientPromise;
+      const db = mongoClient.db();
+      const userCollection = db.collection<userSchema>(COLLECTIONS.users);
+      const user = await userCollection.findOne({ userId, teamId });
+      return user;
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
   }
 
-  private async deleteScheduledMessage(userId: string, messageId?: string) {
-    if (!messageId) return;
-    try {
-      const deleteMessage = await this.client.chat.deleteScheduledMessage({
-        channel: userId,
-        scheduled_message_id: messageId,
-      });
-      if (deleteMessage.ok) {
-        this.logger.info(`Deleted scheduled message ${messageId}`);
-      }
-      if (deleteMessage.error) {
-        this.logger.error(`Error deleting scheduled message ${messageId}`);
-      }
+  private async cleanupCloudWatchEvent(
+    lambdaFunctionName: string,
+    ruleName: string,
+  ) {
+    this.logger.info(`Cleaning up CloudWatchEvent for rule ${ruleName}`);
+    const eventBridgeClient = new CloudWatchEventsClient();
+    const lambdaClient = new LambdaClient();
 
-      return deleteMessage;
+    try {
+      // 1. Remove the target from the rule
+      const removeTargetsCommand = new RemoveTargetsCommand({
+        Rule: ruleName,
+        Ids: ['1'],
+      });
+      await eventBridgeClient.send(removeTargetsCommand);
+    } catch (error) {
+      // if failed to remove the target, log the error and continue.
+      this.logger.error(error);
+    }
+
+    try {
+      // 2. Delete the rule
+      const deleteRuleCommand = new DeleteRuleCommand({
+        Name: ruleName,
+      });
+      await eventBridgeClient.send(deleteRuleCommand);
+    } catch (error) {
+      // if failed to delete the rule, log the error and continue.
+      this.logger.error(error);
+    }
+
+    try {
+      // 3. Remove the permission from the Lambda function
+      const statementId = `${ruleName}-SID`;
+      const removePermissionCommand = new RemovePermissionCommand({
+        FunctionName: lambdaFunctionName,
+        StatementId: statementId,
+      });
+
+      await lambdaClient.send(removePermissionCommand);
     } catch (error) {
       this.logger.error(error);
     }
+  }
+
+  private async createCloudWatchEvent(
+    lambdaFunctionName: string,
+    ruleName: string,
+    scheduleAt: Date,
+    body: {
+      userId: string;
+      teamId: string;
+      teamName: string;
+      prayerName: string;
+      timeForPrayer: Date;
+      language: ILanguages;
+      tz?: string;
+    },
+  ) {
+    // send to cloud watch a scheduled message
+    const eventBridgeClient = new CloudWatchEventsClient();
+
+    const lambdaFnMeta = {
+      name: lambdaFunctionName,
+      arn: `arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:${lambdaFunctionName}`,
+    };
+    const input = {
+      // PutRuleRequest
+      Name: ruleName,
+      ScheduleExpression: isoToAWSCron(scheduleAt),
+      State: 'ENABLED',
+      Description: `Scheduled message for ${ruleName} in ${scheduleAt}`,
+      Tags: [
+        {
+          Key: 'user',
+          Value: body.userId,
+        },
+        {
+          Key: 'teamId',
+          Value: body.teamId,
+        },
+        {
+          Key: 'teamName',
+          Value: body.teamName,
+        },
+      ],
+    } as PutRuleCommandInput;
+
+    const command = new PutRuleCommand(input);
+    const { RuleArn } = await eventBridgeClient.send(command);
+
+    // Add Permission to the Lambda function
+    const lambdaClient = new LambdaClient();
+
+    const functionName = lambdaFnMeta.name;
+    const statementId = `${ruleName}-SID`;
+    const principal = 'events.amazonaws.com';
+
+    try {
+      // Grant permissions for the rule to trigger the lambda
+      const permissionCommand = new AddPermissionCommand({
+        Action: 'lambda:InvokeFunction',
+        FunctionName: functionName,
+        Principal: principal,
+        StatementId: statementId,
+        SourceArn: RuleArn,
+      });
+      await lambdaClient.send(permissionCommand);
+    } catch (error) {
+      this.logger.error(error);
+    }
+
+    // Attach the rule to the lambda
+    const targetsCommand = new PutTargetsCommand({
+      Rule: ruleName,
+      Targets: [
+        {
+          Id: '1',
+          Arn: lambdaFnMeta.arn,
+          Input: JSON.stringify({ ...body, ruleName }),
+        },
+      ],
+    });
+    await eventBridgeClient.send(targetsCommand);
   }
 
   /**
    * this function will send client.chat.scheduleMessage to slack
    * and it will check if there is an offset, the time will be subtracted by the offset
    * @param prayerName prayer name
-   * @param time time for the prayer in UNIX time
-   * @param text: the text will appear in notification
-   * @param blocsk: the block will appear in message
+   * @param timeForPrayer time for the prayer in UNIX time
+   *
    */
   private async scheduleMessage(
     userId: string,
     teamId: string,
+    teamName: string,
     prayerName: string,
-    time: number,
-    text: string,
-    blocks: (KnownBlock | Block)[],
-  ): Promise<string> {
+    timeForPrayer: Date,
+    language: ILanguages,
+    tz?: string,
+  ) {
+    this.logger.info(`Scheduling prayer ${prayerName} for user ${userId}`);
     try {
-      const scheduleMessage = await this.client.chat.scheduleMessage({
-        channel: userId,
-        team_id: teamId,
-        post_at: time,
-        blocks,
-        text,
-      });
+      const body = {
+        userId,
+        teamId,
+        prayerName,
+        timeForPrayer,
+        language,
+        tz,
+        teamName,
+      };
+      const scheduleAt = subMinutes(timeForPrayer, minutesOffset);
+      const ruleName = `${teamId}-${userId}-${prayerName}`;
 
-      if (scheduleMessage.ok) {
-        this.logger.info(`Reminder for ${prayerName} with message ${text}`);
-        return scheduleMessage.scheduled_message_id as string;
-      }
-      if (scheduleMessage.error) {
-        this.logger.error(scheduleMessage.error);
-      }
-      return '';
+      const functionName = `adhan-slack-app-${process.env.STAGE}-slack-post-messages`;
+
+      await this.createCloudWatchEvent(
+        functionName,
+        ruleName,
+        scheduleAt,
+        body,
+      );
     } catch (error) {
       this.logger.error(error);
       throw error;

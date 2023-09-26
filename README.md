@@ -1,8 +1,8 @@
 ## Adhan app for Slack
 
-<a href="https://7qx2m6kbf5.execute-api.us-east-1.amazonaws.com/slack/install"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
+<a href="https://kfuivjdryd.execute-api.us-east-1.amazonaws.com/slack/install"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
 
-Adhan Slack App is an Islamic prayer times reminder configurable and simple to use, the App job is to help you remember praying before the next prayer time by sending a friendly notification.
+The Adhan Slack App serves as a convenient Islamic prayer times reminder for Slack users. With its easy configuration and high precision, this app ensures you're reminded of prayer times with friendly notifications.
 
 <img src="./assets/cover1.1.png" width="30%"></img>
 <img src="./assets/cover2.2.png" width="30%"></img>
@@ -10,77 +10,73 @@ Adhan Slack App is an Islamic prayer times reminder configurable and simple to u
 
 ## Features
 
-- On-time and easy configuration
-- High precision Islamic prayer time
-- Support different calculation methods
-  - `Muslim World League`
-  - `Egyptian General Authority of Survey`
-  - `University of Islamic Sciences, Karachi`
-  - `Umm al-Qura University, Makkah`
-  - `Islamic Society of North America (ISNA)`
-  - `Dubai`
-  - `Kuwait`
-  - `Qatar`
-  - `Singapore`
-  - `Tehran`
-  - `Turkey`
-- Support Arabic and English for the text of prayer time names and reminder messages.
-- Disable/Enable reminders on specific prayer times
+### Timings
+
+- High precision Islamic prayer time.
+- Support for various calculation methods:
+  - Muslim World League, Egyptian General Authority of Survey, University of Islamic Sciences, Karachi, and more...
+
+### Customizations
+
+- Support for Arabic and English for prayer time names and reminder messages.
+- Option to disable/enable reminders for specific prayer times.
 
 ## Project Structure
 
-The project base on [boltjs](https://slack.dev/bolt-js/tutorial/getting-started) which is a expressJs wrapper with slack helper functions.
-The project split into two main parts in other word two functions as I deployed as two lambda functions:
+### 1. Slack-handler function
 
-- Part #1 handler
-  - this handler is the main application will run and listen to any event from `slack` and handle it like `app_home_opened` event
-- Part #2 background job
-  - this part do a full scan in the database each half an hours and fetch all the users match the time at `01:00` depending on the user timezone and then schedule reminder messages for the whole day (check this [article](https://nurdin.dev/schedule-a-job-at-the-same-time-in-different-timezones) for more details about this approach)
+Handles Slack events and sends responses back, catering to interactive buttons and authentication.
+
+- Triggered by API Gateway for routes: `POST: /slack/events`, `GET: /slack/install`, and `GET: /slack/oauth`.
+
+### 2. Slack-cron function
+
+Schedules prayer times for each user daily.
+
+- Runs every 30 minutes, looking up users starting a new day based on their timezone.
+- For a deeper understanding of this approach, refer to [this article](https://nurdin.dev/schedule-a-job-at-the-same-time-in-different-timezones).
+
+### 3. Slack-post-message function
+
+Triggered by EventBridge with the necessary payload to send messages to users.
+
+- Only sends the message if the user's presence is ACTIVE.
 
 ## Development
 
-- In order to run this application locally you most create a slack app and use the template in [manifest.yml](manifest.yml) **the links will be replace it after run the code locally**
-- Install the slack application you have created in your workspace
-- Clone the repo:
-  - `git clone git@github.com:NurdinDev/Adhan-Slack-App.git`
-- Go to the cloned directory:
-  - `cd Adhan-Slack-App`
-- Create `.env` file:
-  - `mv evn.example .env`
-- Copy the `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` and `SLACK_SIGNING_SECRET` from the slack app directory you have created and paste it in the `.env` file
-- Run mongodb in your local if you prefer docker you can run
-  - (optionally) `docker compose up -d mongodb`
-- Install dependencies:
-  - `yarn install`
-- Start the project
-  - `yarn start:dev`
-  - then an express app will run at port `3000`
-- Because slack just accept `https` we have to run our `localhost:3000` on `https`, I use `ngrok` for this scenario
-  - `ngrok http 3000`
-- Copy the `https` link and replace `redirect_urls` and `request_url` host url **before `/slack`**
-  with your local url in you slack application
+### Setup
+
+1. Create a Slack app and use the template in [manifest.yml](manifest.yml). **Links will be replaced after running the code locally**.
+2. Install the Slack application in your workspace.
+3. Clone the repo: `git clone git@github.com:NurdinDev/adhan-app-for-slack.git` and navigate to the directory: `cd Adhan-Slack-App`.
+
+### Configuration
+
+1. Create a `.env` file: `mv env.example .env`.
+2. Fill in the necessary environment variables.
+3. Optionally, run MongoDB using Docker: `docker compose up -d mongodb`.
+4. Install dependencies: `yarn install`.
+
+### Running
+
+1. Start the project using one of the following commands:
+    - `yarn start:dev` - This will start an Express app on port 3000.
+    - `yarn dev` - This will start an serverless offline app on port 3000.
+2. Use `ngrok` to expose your local server to an HTTPS endpoint: `ngrok http 3000`.
+3. Update your Slack application's URLs with the provided HTTPS link from `ngrok`.
 
 ## Deployment
 
-I use serverless framework to deploy to aws lambda and setup ApiGateway with CloudWatch scheduler to run the background function.
+The app is deployed using the serverless framework to AWS Lambda. It configures the API Gateway and CloudWatch scheduler for background functions.
 
 ## Contributing
 
-I started this project in the seek of learning and trying out SlackAPI, the project is useful for some people and I love open source which is making me decide to open source this project and open it to anyone who needs to contribute and add feature or fix a bug.
+This project began as a learning journey into the Slack API. Recognizing its potential benefits for many, it was made open source. Contributions, feature additions, and bug fixes are welcomed.
 
 ## Credits
 
-Credit for the [Adhan-js](https://github.com/batoulapps/adhan-js) package, a well-documented library for calculating Islamic prayer times in JavaScript using Node.
-
-## TODO
-
-- [ ] - Add configuration to disable notification on weekend days
-- [ ] - CI/CD
-- [ ] - Add hijri date
-- [ ] - Autodetect calculation method depend on location or timezone
-- [ ] - Refactoring and use logger instead of console.logs
-- [ ] - Support Turkish language
+Special thanks to the [Adhan-js](https://github.com/batoulapps/adhan-js) package for their well-documented library.
 
 ## License
 
-The MIT License.
+[MIT License](LICENSE.md).

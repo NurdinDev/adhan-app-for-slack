@@ -1,5 +1,4 @@
 const TYPES = {
-  agenda: Symbol.for('agenda'),
   messageScheduler: Symbol.for('messageScheduler'),
   mongoDB: Symbol.for('mongoDB'),
   slackApp: Symbol.for('slackApp'),

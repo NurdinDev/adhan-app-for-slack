@@ -24,6 +24,7 @@ export const minutesOffset = 20;
 export const COLLECTIONS = {
   installations: 'installations',
   users: 'users',
+  messages: 'messages',
 };
 
 export interface installationSchema {
@@ -37,13 +38,24 @@ export type ILanguages = 'en' | 'ar';
 export interface userSchema {
   userId: string;
   teamId: string;
+  teamName: string;
   tz?: string;
   coordinates: Coordinates;
-  calculationMethod: calculationMethod;
+  calculationMethod: keyof typeof calculationMethod;
   reminderList?: prayerWithoutNone[];
   messages?: Record<prayerWithoutNone, string>;
   lastScheduledMessages?: Date;
   language: ILanguages;
+}
+
+export interface messageSchema {
+  userId: string;
+  teamId: string;
+  prayerName: string;
+  scheduledTime: Date;
+  language: ILanguages;
+  timeForPrayer: Date;
+  tz: string;
 }
 
 export const calculationMethod = {
@@ -68,3 +80,15 @@ export type PrayerWithoutNone = Exclude<keyof typeof Prayer, 'None'>;
 export type prayerWithoutNone = Exclude<ValueOf<typeof Prayer>, 'none'>;
 
 export declare type ValueOf<T> = T[keyof T];
+
+export const AWS_REGION = 'us-east-1';
+export const AWS_ACCOUNT_ID = process.env.AWS_ACCOUNT_ID;
+
+export const prayerNames = [
+  'fajr',
+  'sunrise',
+  'dhuhr',
+  'asr',
+  'maghrib',
+  'isha',
+];
