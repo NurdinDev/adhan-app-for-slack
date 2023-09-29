@@ -7,6 +7,18 @@ import {
 import { ILanguages } from '../constants';
 import { LOCALS } from './locals';
 
+export function isoToAWSCron(isoDate: Date) {
+  const date = new Date(isoDate);
+
+  const minutes = date.getUTCMinutes();
+  const hours = date.getUTCHours();
+  const dayOfMonth = date.getUTCDate();
+  const month = date.getUTCMonth() + 1; // JavaScript months are 0-indexed
+  const year = date.getUTCFullYear();
+
+  return `cron(${minutes} ${hours} ${dayOfMonth} ${month} ? ${year})`;
+}
+
 export const getReadableName = (
   prayer: string,
   language: ILanguages,
@@ -41,6 +53,7 @@ export const languagesOptions = [
 ];
 
 export function getTeamForInstallation(installation: Installation) {
+  console.log(JSON.stringify(installation));
   if (
     installation.isEnterpriseInstall &&
     installation.enterprise !== undefined
@@ -54,12 +67,18 @@ export function getTeamForInstallation(installation: Installation) {
   throw new Error('Could not find a valid team id in the payload request');
 }
 
-export function getTeamIdViewSubmitAction(view: ViewSubmitAction) {
+export function getTeamIdViewSubmitAction(view: ViewSubmitAction): {
+  id: string;
+  name: string;
+} {
   if (view.is_enterprise_install && view.enterprise !== undefined) {
-    return view.enterprise.id;
+    return { id: view.enterprise.id, name: view.enterprise.name };
   }
   if (view.team !== null) {
-    return view.team.id;
+    return {
+      id: view.team.id,
+      name: view.team.domain,
+    };
   }
   throw new Error('Could not find a valid team id in the payload request');
 }

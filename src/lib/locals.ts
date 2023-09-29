@@ -1,6 +1,10 @@
 import { Md } from 'slack-block-builder';
 
 export const LOCALS = {
+  BOT_USERNAME: {
+    en: 'Prayer Reminder',
+    ar: 'مُذكر الصلاة',
+  },
   PRAYER_NAMES: {
     Fajr: {
       en: 'Fajr',
@@ -52,7 +56,7 @@ export const LOCALS = {
     ar: 'لم يتم العثور على أوقات الصلاة',
   },
   SETTINGS: {
-    en: 'Settings',
+    en: 'Configuration',
     ar: 'الإعدادات',
   },
   BOT_REMINDER_IN_TIMES: {

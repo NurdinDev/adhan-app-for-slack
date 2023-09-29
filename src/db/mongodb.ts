@@ -1,10 +1,10 @@
+import { configDotenv } from 'dotenv';
 import * as env from 'env-var';
 import { MongoClient, MongoClientOptions, ServerApiVersion } from 'mongodb';
 
+configDotenv();
 const uri = env.get('MONGODB_URI').required().asString(); // your mongodb connection string
 const options = {
-  // useNewUrlParser: true,
-  useNewUrlParser: true,
   useUnifiedTopology: true,
   serverApi: ServerApiVersion.v1,
 } as MongoClientOptions;

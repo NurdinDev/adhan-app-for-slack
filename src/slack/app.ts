@@ -5,13 +5,13 @@ import {
   InstallationQuery,
   Logger,
 } from '@slack/bolt';
-import { ConsoleLogger } from '@slack/logger';
+import { ConsoleLogger, LogLevel } from '@slack/logger';
 import { WebClient } from '@slack/web-api';
 import { Coordinates } from 'adhan';
 import * as env from 'env-var';
 import {
-  actions,
   COLLECTIONS,
+  actions,
   installationSchema,
   settingsView,
   userSchema,
@@ -38,7 +38,7 @@ export class SlackApp {
       clientSecret: env.get('SLACK_CLIENT_SECRET').required().asString(),
       stateSecret: env.get('SLACK_STATE_SECRET').required().asString(),
       processBeforeResponse: true,
-      // logLevel: LogLevel.DEBUG,
+      logLevel: LogLevel.DEBUG,
       scopes: ['users:read', 'chat:write'],
       installerOptions: {
         directInstall: true,
@@ -68,6 +68,11 @@ export class SlackApp {
     });
   }
 
+  /**
+   * This function takes a time like 01:00 AM and search for users in the same timezone and re-schedule their messages
+   * @param time pass the time and minutes to search for users in the same timezone and re-schedule their messages
+   * @returns void
+   */
   async scanAndSchedule(time: { h: number; m: number }) {
     // scan for user that have time 01:00 AM and re-schedule their messages
     const expr = {
@@ -80,7 +85,10 @@ export class SlackApp {
     };
     const usersCollection = await this.usersCollection();
     const users = usersCollection.find(expr);
-    console.log(`Found ${await usersCollection.countDocuments(expr)} users`);
+    const usersCount = await usersCollection.countDocuments(expr);
+    console.log(`Found ${usersCount} users`);
+    if (usersCount === 0) return;
+
     while (await users.hasNext()) {
       try {
         const user = await users.next();
@@ -92,6 +100,7 @@ export class SlackApp {
         const {
           userId,
           teamId,
+          teamName,
           tz,
           coordinates,
           reminderList,
@@ -122,11 +131,16 @@ export class SlackApp {
         }
 
         const messageScheduler = new MessageScheduler(
-          new WebClient(token),
+          token,
           new ConsoleLogger(),
         );
 
-        await messageScheduler.reScheduleMessages(userId, teamId, reminderList);
+        await messageScheduler.scheduleMessages(
+          userId,
+          teamId,
+          teamName,
+          reminderList,
+        );
       } catch (e) {
         console.log(e);
         continue;
@@ -135,7 +149,7 @@ export class SlackApp {
   }
 
   registerEvents() {
-    const logger = new ConsoleLogger()
+    const logger = new ConsoleLogger();
     this.app.event('app_home_opened', homeOpenedEvent);
     this.app.event('app_uninstalled', async ({ body }) => {
       logger.info('app_uninstalled');
@@ -152,6 +166,18 @@ export class SlackApp {
     this.app.view(settingsView.callbackId, settingsViewCallback);
     this.app.action(actions.appSettingsClick, settingsAction);
   }
+
+  async getClient(teamId: string) {
+    const token = await this.getAuthToken(teamId);
+
+    if (!token) {
+      console.log('No token found for team: ' + teamId);
+      return;
+    }
+
+    return new WebClient(token);
+  }
+
   private async fetchInstallation(
     installQuery: InstallationQuery<boolean>,
     logger?: Logger,
@@ -232,7 +258,10 @@ export class SlackApp {
     }
   }
 
-  private async deleteInstallationAndUsersFromDB(teamId: string, logger?: Logger) {
+  private async deleteInstallationAndUsersFromDB(
+    teamId: string,
+    logger?: Logger,
+  ) {
     try {
       const collection = await this.installationCollection();
       await collection.deleteOne({ teamId });

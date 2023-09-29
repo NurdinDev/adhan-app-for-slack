@@ -8,6 +8,7 @@
     "strict": true,
     "esModuleInterop": true,
     "sourceMap": true,
+    "allowJs": true,
     "moduleResolution": "node",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
