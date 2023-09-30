@@ -60,7 +60,7 @@ export const LOCALS = {
     ar: 'الإعدادات',
   },
   BOT_REMINDER_IN_TIMES: {
-    en: 'The bot will send you a reminder for the following prayers',
+    en: 'The bot will send you reminders for the following prayers',
     ar: 'سيرسل لك التطبيق تذكيرًا للصلوات التالية',
   },
   REMINDER: {
